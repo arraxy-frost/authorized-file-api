@@ -15,10 +15,20 @@ export const pool = mysql.createPool({
 });
 
 export const init = async () => {
-    console.log('Initializing database ...');
+    console.log('Initializing database');
 
     try {
         const conn = await pool.getConnection();
+
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS tokens (
+                id VARCHAR(255) PRIMARY KEY,
+                owner VARCHAR(255) NOT NULL,
+                device_id VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP
+            );
+        `);
 
         await conn.query(`
             CREATE TABLE IF NOT EXISTS users (
@@ -41,6 +51,6 @@ export const init = async () => {
         conn.release();
     }
     catch (err) {
-        console.error('Error creating table:', err);
+        console.error('Error while creating tables:', err);
     }
 };
