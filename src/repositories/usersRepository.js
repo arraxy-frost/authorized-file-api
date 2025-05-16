@@ -8,3 +8,12 @@ export const createUser = async (id, passwordHash) => {
 
     return result.affectedRows > 0;
 }
+
+export const findUserById = async (id) => {
+    const [rows] = await db.pool.query(
+        `SELECT * FROM users WHERE id = ?`,
+        [id]
+    );
+
+    return rows[0];
+}

@@ -1,28 +1,49 @@
 import * as dotenv from 'dotenv';
-import * as usersRepository from '../repositories/usersRepository.js';
 import jwt from 'jsonwebtoken';
-import hashString from "../utils/hashString.js";
 
 dotenv.config();
 
-export const signIn = async (id, password) => {
-    const passwordHash = await hashString(password);
-    const result = await usersRepository.createUser(id, passwordHash);
+const {
+    JWT_ACCESS_SECRET,
+    JWT_REFRESH_SECRET,
+    JWT_ACCESS_EXPIRES,
+    JWT_REFRESH_EXPIRES
+} = process.env;
 
-    if (result) {
-        const accessToken = jwt.sign(
-            {
-                id: result.id,
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: process.env.JWT_EXPIRE,
-            }
-        );
-        return {
-            access_token: accessToken
-        }
-    } else {
-        throw new Error("User has not created");
-    }
+const ALGORITHM = 'HS256';
+
+if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
+    throw new Error('JWT secrets are missing in .env');
+}
+
+export const generateTokenPair = id => {
+    const accessToken = jwt.sign({
+       sub: id,
+    }, JWT_ACCESS_SECRET, {
+        expiresIn: JWT_ACCESS_EXPIRES,
+        algorithm: ALGORITHM,
+    });
+
+    const refreshToken = jwt.sign({
+        sub: id,
+    }, JWT_REFRESH_SECRET, {
+        expiresIn: JWT_REFRESH_EXPIRES,
+        algorithm: ALGORITHM,
+    });
+
+    return {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+    };
 };
+
+export const extractUserDataFromAccessToken = token => {
+    try {
+        return jwt.verify(token, JWT_ACCESS_SECRET, {
+            algorithms: [ALGORITHM],
+        });
+    }
+    catch (err) {
+        return null;
+    }
+}

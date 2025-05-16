@@ -24,9 +24,9 @@ export const init = async () => {
             CREATE TABLE IF NOT EXISTS tokens (
                 id VARCHAR(255) PRIMARY KEY,
                 owner VARCHAR(255) NOT NULL,
-                device_id VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP
+                token_type VARCHAR(32) NOT NULL,
+                token_hash VARCHAR(255) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
 
