@@ -1,5 +1,7 @@
 import * as dotenv from 'dotenv';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import * as sessionsRepository from '../repositories/sessionsRepository.js';
 
 dotenv.config();
 
@@ -11,6 +13,9 @@ const {
 } = process.env;
 
 const ALGORITHM = 'HS256';
+const sha256 = (data) => {
+    return crypto.createHash('sha256').update(data).digest('hex');
+};
 
 if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
     throw new Error('JWT secrets are missing in .env');
@@ -48,25 +53,92 @@ export const extractUserDataFromAccessToken = token => {
     }
 };
 
-export const getNewAccessToken = (refreshToken) => {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+export const createSession = async (userId, refreshToken) => {
+    const refreshHash = sha256(refreshToken);
+
+    try {
+        await sessionsRepository.createSession(userId, refreshHash);
+
+        return {
+            success: true,
+            message: 'Session created successfully',
+        }
+    }
+    catch (err) {
+        console.error('Error creating session:', err);
+
+        return {
+            success: false,
+            message: 'Failed to create session',
+        }
+    }
+};
+
+export const refreshSession = async (token) => {
+    const session = await sessionsRepository.findSessionByRefreshHash(sha256(token));
+
+    if (!session) {
+        return {
+            success: false,
+            message: 'Session not found. Refresh token is invalid',
+        }
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
 
     if (!decoded) {
         return {
             success: false,
             message: 'Refresh token is invalid',
-        };
+        }
     }
 
-    const newAccessToken = jwt.sign({
-        sub: decoded.sub,
-    }, JWT_ACCESS_SECRET, {
-        expiresIn: JWT_ACCESS_EXPIRES,
-        algorithm: ALGORITHM,
-    });
+    const { accessToken, refreshToken } = generateTokenPair(decoded.sub);
+
+    const updateResult = await sessionsRepository.updateSession(
+        session.id,
+        sha256(refreshToken)
+    );
+
+    if (!updateResult) {
+        return {
+            success: false,
+            message: 'Failed to update session',
+        }
+    }
 
     return {
         success: true,
-        accessToken: newAccessToken,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+    }
+};
+
+export const getSessionByRefreshToken = async (refreshToken) => {
+    const session = await sessionsRepository.findSessionByRefreshHash(sha256(refreshToken));
+
+    if (!session) {
+        return {
+            success: false,
+            message: 'Session not found. Refresh token is invalid',
+        }
+    }
+
+    return session;
+};
+
+export const logoutSession = async (sessionId) => {
+    const result = await sessionsRepository.deleteSession(sessionId);
+
+    if (!result) {
+        return {
+            success: false,
+            message: 'Failed to delete session',
+        }
+    }
+
+    return {
+        success: true,
+        message: 'Session deleted successfully',
     }
 }

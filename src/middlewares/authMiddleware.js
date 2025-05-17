@@ -1,7 +1,17 @@
 import jwt from 'jsonwebtoken'
 import {extractTokenFromHeader} from "../utils/extractTokenFromHeader.js";
 
-export const authenticate = (req, res, next) => {
+export default (req, res, next) => {
+    const openPaths = [
+        '/signup',
+        '/signin',
+        '/signin/new_token'
+    ];
+
+    if (openPaths.includes(req.path)) {
+        return next();
+    }
+
     const accessToken = extractTokenFromHeader(req);
 
     if (!accessToken) {

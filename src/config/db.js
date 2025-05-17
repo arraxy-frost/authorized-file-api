@@ -21,11 +21,10 @@ export const init = async () => {
         const conn = await pool.getConnection();
 
         await conn.query(`
-            CREATE TABLE IF NOT EXISTS tokens (
+            CREATE TABLE IF NOT EXISTS sessions (
                 id VARCHAR(255) PRIMARY KEY,
-                owner VARCHAR(255) NOT NULL,
-                token_type VARCHAR(32) NOT NULL,
-                token_hash VARCHAR(255) NOT NULL UNIQUE,
+                user_id VARCHAR(255) NOT NULL,
+                refresh_hash VARCHAR(64) NOT NULL UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);

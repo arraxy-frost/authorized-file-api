@@ -21,12 +21,23 @@ export const signIn = async (req, res) => {
 
     const { accessToken, refreshToken } = authService.generateTokenPair(id);
 
+    await authService.createSession(id, refreshToken);
+
+    const session = await authService.getSessionByRefreshToken(refreshToken);
+
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'Strict',
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/signin/new_token',
+    });
+
+    res.cookie('sessionId', session.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        path: '/logout',
     });
 
     return res.json({
@@ -48,12 +59,23 @@ export const signUp = async (req, res) => {
 
         const { accessToken, refreshToken } = authService.generateTokenPair(id);
 
+        await authService.createSession(id, refreshToken);
+
+        const session = await authService.getSessionByRefreshToken(refreshToken);
+
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: false,
             sameSite: 'Strict',
             maxAge: 7 * 24 * 60 * 60 * 1000,
             path: '/signin/new_token',
+        });
+
+        res.cookie('sessionId', session.id, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+            path: '/logout',
         });
 
         return res.json({
@@ -65,14 +87,28 @@ export const signUp = async (req, res) => {
     }
 };
 
-export const signInNewToken = (req, res) => {
-    const refreshToken = req.cookies.refreshToken;
+export const signInNewToken = async (req, res) => {
+    const cookieToken = req.cookies.refreshToken;
 
-    const { accessToken } = authService.getNewAccessToken(refreshToken);
+    if (!cookieToken) {
+        return res.status(401).json({
+            message: 'Refresh token is missing',
+        });
+    }
+
+    const { accessToken, refreshToken } = await authService.refreshSession(cookieToken);
+
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/signin/new_token',
+    });
 
     return res.json({
         accessToken
-    })
+    });
 };
 
 export const info = async (req, res) => {
@@ -97,7 +133,37 @@ export const info = async (req, res) => {
 };
 
 export const logout = async (req, res) => {
-    res.json({
-        request: 'logout'
+    const sessionId = req.cookies.sessionId;
+
+    if (!sessionId) {
+        return res.status(401).json({
+            message: 'Session ID is missing',
+        });
+    }
+
+    const logoutResult = await authService.logoutSession(sessionId);
+
+    if (!logoutResult.success) {
+        return res.status(500).json({
+            message: 'Failed to logout',
+        });
+    }
+
+    res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        path: '/signin/new_token',
+    });
+
+    res.clearCookie('sessionId', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        path: '/logout',
+    });
+
+    return res.json({
+        request: 'logout success'
     })
 };
