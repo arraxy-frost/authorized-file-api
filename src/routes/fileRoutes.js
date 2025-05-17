@@ -6,9 +6,9 @@ const router = express.Router();
 
 router.post('/upload', upload.single('file'), fileController.uploadFile);
 router.get('/list', fileController.listFiles);
-router.get('/download/:id', fileController.downloadFileById);
 router.delete('/delete/:id', fileController.deleteFileById);
 router.put('/update/:id', fileController.updateFileById);
-router.get('/:id', fileController.getFileById);
+router.get('/download/:id', fileController.downloadFileById);
+router.get('/:id', fileController.listFileById);
 
 export default router;

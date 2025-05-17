@@ -31,3 +31,50 @@ export const saveFile = async (file) => {
         return false;
     }
 }
+
+export const listFiles = async (limit, page) => {
+    try {
+        return await fileRepository.listFiles(limit, page);
+    }
+    catch (err) {
+        console.error('Error listing files:', err);
+        return false;
+    }
+}
+
+export const deleteFileById = async (id) => {
+    try {
+        const fileToDelete = await fileRepository.findFileById(id);
+
+        if (!fileToDelete) {
+            console.error('File not found in database');
+            return false;
+        }
+
+        const deletionResult = await fileRepository.deleteFileById(fileToDelete.id);
+
+        if (deletionResult) {
+            await fs.unlink(path.join(UPLOAD_PATH, fileToDelete.name));
+            return fileToDelete;
+        }
+        else {
+            return false;
+        }
+    }
+    catch (err) {
+        console.error('Error getting file by ID:', err);
+        return false;
+    }
+}
+
+export const listFileById = async (id) => {
+    const fileData = await fileRepository.findFileById(id);
+
+    if (!fileData) {
+        console.error('File not found in database');
+        return false;
+    }
+    else {
+        return fileData;
+    }
+}
