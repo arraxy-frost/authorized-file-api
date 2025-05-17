@@ -11,7 +11,9 @@ export const createUser = async (id, password) => {
             message: 'User created successfully',
         }
     } else {
-        throw new Error("User has not created");
+        return {
+            message: 'User creation failed',
+        }
     }
 }
 
@@ -20,7 +22,8 @@ export const validateUser = async (id, password) => {
 
     if (user) {
         return await bcrypt.compare(password, user['password_hash']);
-    } else {
-        throw new Error("User not found");
+    }
+    else {
+        return false;
     }
 }
