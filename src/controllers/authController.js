@@ -1,26 +1,39 @@
 import * as authService from '../services/authService.js';
 import * as userService from '../services/userService.js';
-import {extractTokenFromHeader} from "../utils/extractTokenFromHeader.js";
+import { extractTokenFromHeader } from "../utils/extractTokenFromHeader.js";
 
 export const signIn = async (req, res) => {
     const { id, password } = req.body;
 
     if (!id || !password) {
         return res.status(400).send({
-            message: 'id or password is missing in body',
+            message: 'id or password is missing',
         });
     }
 
     const result = await userService.validateUser(id, password);
 
     if (!result) {
-        return res.status(400).send({
-            message: 'Password is incorrect',
+        return res.status(401).send({
+            message: 'Invalid id or password',
         })
     }
 
-    return res.json(authService.generateTokenPair(id));
+    const { accessToken, refreshToken } = authService.generateTokenPair(id);
+
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'Strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/signin/new_token',
+    });
+
+    return res.json({
+        access_token: accessToken,
+    });
 };
+
 export const signUp = async (req, res) => {
     const { id, password } = req.body;
 
@@ -31,20 +44,37 @@ export const signUp = async (req, res) => {
     }
 
     try {
-        const result = await userService.createUser(id, password);
-        res.json(result);
+        await userService.createUser(id, password);
+
+        const { accessToken, refreshToken } = authService.generateTokenPair(id);
+
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'Strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/signin/new_token',
+        });
+
+        return res.json({
+            access_token: accessToken,
+        });
     }
     catch (err) {
         res.status(500).json(err.message);
     }
 };
-export const signInNewToken = async (req, res) => {
-    // const { refreshToken } = req.body;
+
+export const signInNewToken = (req, res) => {
+    const refreshToken = req.cookies.refreshToken;
+
+    const { accessToken } = authService.getNewAccessToken(refreshToken);
 
     return res.json({
-        request: 'signInNewToken'
+        accessToken
     })
 };
+
 export const info = async (req, res) => {
     const accessToken = extractTokenFromHeader(req);
 
@@ -65,6 +95,7 @@ export const info = async (req, res) => {
         });
     }
 };
+
 export const logout = async (req, res) => {
     res.json({
         request: 'logout'

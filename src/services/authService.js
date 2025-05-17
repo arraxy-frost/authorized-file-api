@@ -32,8 +32,8 @@ export const generateTokenPair = id => {
     });
 
     return {
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        accessToken,
+        refreshToken
     };
 };
 
@@ -45,5 +45,28 @@ export const extractUserDataFromAccessToken = token => {
     }
     catch (err) {
         return null;
+    }
+};
+
+export const getNewAccessToken = (refreshToken) => {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+    if (!decoded) {
+        return {
+            success: false,
+            message: 'Refresh token is invalid',
+        };
+    }
+
+    const newAccessToken = jwt.sign({
+        sub: decoded.sub,
+    }, JWT_ACCESS_SECRET, {
+        expiresIn: JWT_ACCESS_EXPIRES,
+        algorithm: ALGORITHM,
+    });
+
+    return {
+        success: true,
+        accessToken: newAccessToken,
     }
 }
