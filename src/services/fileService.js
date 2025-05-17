@@ -68,13 +68,60 @@ export const deleteFileById = async (id) => {
 }
 
 export const listFileById = async (id) => {
-    const fileData = await fileRepository.findFileById(id);
+    try {
+        const fileData = await fileRepository.findFileById(id);
 
-    if (!fileData) {
-        console.error('File not found in database');
+        if (!fileData) {
+            console.error('File not found in database');
+            return false;
+        }
+        else {
+            return fileData;
+        }
+    }
+    catch (err) {
+        console.error('Error getting file by id:', err);
         return false;
     }
-    else {
-        return fileData;
+}
+
+export const updateFileById = async (id, file) => {
+    try {
+        const { originalname, mimetype, size, buffer } = file;
+
+        const fileToUpdate = await fileRepository.findFileById(id);
+
+        if (!fileToUpdate) {
+            console.error('File not found in database');
+            return false;
+        }
+
+        try {
+            await fs.unlink(path.join(UPLOAD_PATH, fileToUpdate.name));
+            await fs.writeFile(path.join(UPLOAD_PATH, originalname), buffer);
+        } catch (err) {
+            console.error('Error unlinking file:', err);
+            return false;
+        }
+
+        const updateResult = await fileRepository.updateFileById(
+            id,
+            originalname,
+            path.extname(originalname),
+            mimetype,
+            size
+        );
+
+        if (!updateResult) {
+            console.error('File not found in database');
+            return false;
+        }
+
+        return true;
+    }
+    catch (err) {
+        console.error('Error updating file:', err);
+        return false;
     }
 }
+

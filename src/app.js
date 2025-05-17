@@ -4,6 +4,7 @@ import * as db from "./config/db.js";
 import cors from 'cors';
 import fileRoutes from "./routes/fileRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
 
 const app = express();
 
@@ -13,4 +14,6 @@ app.use(express.json());
 app.use('/', authRoutes);
 app.use('/file', fileRoutes);
 
-export { app, db };
+app.use(errorHandler);
+
+export {app, db};

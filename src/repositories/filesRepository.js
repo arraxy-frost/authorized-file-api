@@ -39,3 +39,12 @@ export const findFileById = async (id) => {
     const [rows] = await db.pool.query(`SELECT * FROM files WHERE id = ?`, [id]);
     return rows[0];
 }
+
+export const updateFileById = async (id, name, extension, mime, size) => {
+    const [result] = await db.pool.query(
+        `UPDATE files SET name = ?, extension = ?, mime = ?, size = ? WHERE id = ?`,
+        [name, extension, mime, size, id]
+    );
+
+    return result.affectedRows > 0;
+}

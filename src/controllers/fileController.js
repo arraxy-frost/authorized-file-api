@@ -1,4 +1,5 @@
 import * as fileService from '../services/fileService.js'
+import * as path from "node:path";
 
 
 export const uploadFile = async (req, res) => {
@@ -63,13 +64,45 @@ export const listFileById = async (req, res) => {
 };
 
 export const downloadFileById = async (req, res) => {
-    res.json({
-        request: 'downloadFileById'
+    const fileData = await fileService.listFileById(req.params.id);
+
+    if (!fileData) {
+        return res.status(404).json({
+            message: 'file not found'
+        });
+    }
+
+    const filePath = path.join(process.env.FILE_UPLOAD_PATH, fileData.name);
+
+    return res.download(filePath, fileData.name, (err) => {
+        if (err) {
+            console.error('Error joining path:', err);
+            return res.status(500).json({
+                message: 'file not found on disk'
+            });
+        }
     });
 };
 
 export const updateFileById = async (req, res) => {
+    const id = parseInt(req.params.id);
+
+    if (!req.file) {
+        return res.status(400).json({
+            message: 'attach file to update'
+        });
+    }
+
+    const updateResult = await fileService.updateFileById(id, req.file);
+
+    if (!updateResult) {
+        return res.status(500).json({
+            message: 'update failed'
+        })
+    }
+
     return res.json({
-        request: 'updateFileById'
+        status: 'success',
+        message: 'file updated successfully'
     });
 };
