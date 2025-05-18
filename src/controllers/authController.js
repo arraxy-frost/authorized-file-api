@@ -59,7 +59,9 @@ export const signInNewToken = async (req, res) => {
     try {
         const cookieToken = req.cookies.refreshToken;
 
-        if (!cookieToken) throw new Error('Token not provided');
+        if (!cookieToken) {
+            return res.status(401).json({ message: 'Token not provided' });
+        }
 
         const { accessToken, refreshToken, session } = await authService.refreshSession(cookieToken);
 
