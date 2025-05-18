@@ -2,6 +2,35 @@ import * as authService from '../services/authService.js';
 import * as userService from '../services/userService.js';
 import { extractTokenFromHeader } from "../utils/extractTokenFromHeader.js";
 
+export const signUp = async (req, res) => {
+    const { id, password } = req.body;
+
+    if (!id || !password) {
+        res.status(400).send({
+            message: 'id or password is missing in body',
+        });
+    }
+
+    try {
+        await userService.createUser(id, password);
+
+        const { accessToken, refreshToken } = authService.generateTokenPair(id);
+
+        await authService.createSession(id, refreshToken);
+
+        const session = await authService.getSessionByRefreshToken(refreshToken);
+
+        setSecuredCookies(res, id, session.id);
+
+        return res.json({
+            access_token: accessToken,
+        });
+    }
+    catch (err) {
+        res.status(500).json(err.message);
+    }
+};
+
 export const signIn = async (req, res) => {
     const { id, password } = req.body;
 
@@ -25,66 +54,11 @@ export const signIn = async (req, res) => {
 
     const session = await authService.getSessionByRefreshToken(refreshToken);
 
-    res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/signin/new_token',
-    });
-
-    res.cookie('sessionId', session.id, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-        path: '/logout',
-    });
+    setSecuredCookies(res, id, session.id);
 
     return res.json({
         access_token: accessToken,
     });
-};
-
-export const signUp = async (req, res) => {
-    const { id, password } = req.body;
-
-    if (!id || !password) {
-        res.status(400).send({
-            message: 'id or password is missing in body',
-        });
-    }
-
-    try {
-        await userService.createUser(id, password);
-
-        const { accessToken, refreshToken } = authService.generateTokenPair(id);
-
-        await authService.createSession(id, refreshToken);
-
-        const session = await authService.getSessionByRefreshToken(refreshToken);
-
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: 'Strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/signin/new_token',
-        });
-
-        res.cookie('sessionId', session.id, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'Strict',
-            path: '/logout',
-        });
-
-        return res.json({
-            access_token: accessToken,
-        });
-    }
-    catch (err) {
-        res.status(500).json(err.message);
-    }
 };
 
 export const signInNewToken = async (req, res) => {
@@ -149,6 +123,32 @@ export const logout = async (req, res) => {
         });
     }
 
+    clearSecuredCookies();
+
+    return res.json({
+        request: 'logout success'
+    })
+};
+
+
+const setSecuredCookies = (res, refreshToken, sessionId) => {
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        maxAge: parseInt(process.env.JWT_REFRESH_EXPIRES),
+        path: '/signin/new_token',
+    });
+
+    res.cookie('sessionId', sessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        path: '/logout',
+    });
+}
+
+const clearSecuredCookies = (res) => {
     res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -162,8 +162,4 @@ export const logout = async (req, res) => {
         sameSite: 'Strict',
         path: '/logout',
     });
-
-    return res.json({
-        request: 'logout success'
-    })
-};
+}

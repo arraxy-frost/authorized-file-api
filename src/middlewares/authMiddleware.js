@@ -1,13 +1,8 @@
 import jwt from 'jsonwebtoken'
+import openPaths from "../config/openPaths.js";
 import {extractTokenFromHeader} from "../utils/extractTokenFromHeader.js";
 
 export default (req, res, next) => {
-    const openPaths = [
-        '/signup',
-        '/signin',
-        '/signin/new_token'
-    ];
-
     if (openPaths.includes(req.path)) {
         return next();
     }
