@@ -1,6 +1,7 @@
 import * as authService from '../services/authService.js';
 import * as userService from '../services/userService.js';
 import { extractTokenFromHeader } from "../utils/extractTokenFromHeader.js";
+import { tokenWhiteList } from "../config/cache.js";
 
 export const signUp = async (req, res) => {
     const { id, password } = req.body;
@@ -14,14 +15,11 @@ export const signUp = async (req, res) => {
     try {
         await userService.createUser(id, password);
 
-        const { accessToken, refreshToken } = authService.generateTokenPair(id);
+        const { refreshToken, accessToken, session } = await initSession(id);
 
-        await authService.createSession(id, refreshToken);
+        setSecuredCookies(res, refreshToken, session.id);
 
-        const session = await authService.getSessionByRefreshToken(refreshToken);
-
-        setSecuredCookies(res, id, session.id);
-
+        console.log(accessToken, refreshToken, accessToken, session.id);
         return res.json({
             access_token: accessToken,
         });
@@ -48,13 +46,9 @@ export const signIn = async (req, res) => {
         })
     }
 
-    const { accessToken, refreshToken } = authService.generateTokenPair(id);
+    const { refreshToken, accessToken, session } = await initSession(id);
 
-    await authService.createSession(id, refreshToken);
-
-    const session = await authService.getSessionByRefreshToken(refreshToken);
-
-    setSecuredCookies(res, id, session.id);
+    setSecuredCookies(res, refreshToken, session.id);
 
     return res.json({
         access_token: accessToken,
@@ -62,27 +56,32 @@ export const signIn = async (req, res) => {
 };
 
 export const signInNewToken = async (req, res) => {
-    const cookieToken = req.cookies.refreshToken;
+    try {
+        const cookieToken = req.cookies.refreshToken;
 
-    if (!cookieToken) {
-        return res.status(401).json({
-            message: 'Refresh token is missing',
+        if (!cookieToken) throw new Error('Token not provided');
+
+        const { accessToken, refreshToken, session } = await authService.refreshSession(cookieToken);
+
+        tokenWhiteList.set(session.id, accessToken);
+
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+            maxAge: parseInt(process.env.JWT_REFRESH_EXPIRES),
+            path: '/signin/new_token',
+        });
+
+        return res.json({
+            accessToken
         });
     }
-
-    const { accessToken, refreshToken } = await authService.refreshSession(cookieToken);
-
-    res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/signin/new_token',
-    });
-
-    return res.json({
-        accessToken
-    });
+    catch (err) {
+        return res.status(401).json({
+            message: err.message
+        });
+    }
 };
 
 export const info = async (req, res) => {
@@ -123,7 +122,21 @@ export const logout = async (req, res) => {
         });
     }
 
-    clearSecuredCookies();
+    res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        path: '/signin/new_token',
+    });
+
+    res.clearCookie('sessionId', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        path: '/logout',
+    });
+
+    tokenWhiteList.del(sessionId);
 
     return res.json({
         request: 'logout success'
@@ -148,18 +161,18 @@ const setSecuredCookies = (res, refreshToken, sessionId) => {
     });
 }
 
-const clearSecuredCookies = (res) => {
-    res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-        path: '/signin/new_token',
-    });
+const initSession = async (userId) => {
+    const refreshToken = authService.generateRefreshToken(userId);
 
-    res.clearCookie('sessionId', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-        path: '/logout',
-    });
+    await authService.createSession(userId, refreshToken);
+    const session = await authService.getSessionByRefreshToken(refreshToken);
+
+    const accessToken = authService.generateAccessToken(userId, session.id);
+    tokenWhiteList.set(session.id, accessToken);
+
+    return {
+        accessToken,
+        refreshToken,
+        session,
+    }
 }

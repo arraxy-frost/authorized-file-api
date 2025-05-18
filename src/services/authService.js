@@ -21,25 +21,23 @@ if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
     throw new Error('JWT secrets are missing in .env');
 }
 
-export const generateTokenPair = id => {
-    const accessToken = jwt.sign({
-       sub: id,
-    }, JWT_ACCESS_SECRET, {
-        expiresIn: JWT_ACCESS_EXPIRES,
-        algorithm: ALGORITHM,
-    });
-
-    const refreshToken = jwt.sign({
-        sub: id,
+export const generateRefreshToken = (userId) => {
+    return jwt.sign({
+        sub: userId,
     }, JWT_REFRESH_SECRET, {
         expiresIn: JWT_REFRESH_EXPIRES,
         algorithm: ALGORITHM,
     });
+};
 
-    return {
-        accessToken,
-        refreshToken
-    };
+export const generateAccessToken = (userId, sessionId) => {
+    return jwt.sign({
+        sub: userId,
+        sessionId
+    }, JWT_ACCESS_SECRET, {
+        expiresIn: JWT_ACCESS_EXPIRES,
+        algorithm: ALGORITHM,
+    });
 };
 
 export const extractUserDataFromAccessToken = token => {
@@ -47,8 +45,7 @@ export const extractUserDataFromAccessToken = token => {
         return jwt.verify(token, JWT_ACCESS_SECRET, {
             algorithms: [ALGORITHM],
         });
-    }
-    catch (err) {
+    } catch (err) {
         return null;
     }
 };
@@ -63,8 +60,7 @@ export const createSession = async (userId, refreshToken) => {
             success: true,
             message: 'Session created successfully',
         }
-    }
-    catch (err) {
+    } catch (err) {
         console.error('Error creating session:', err);
 
         return {
@@ -77,40 +73,26 @@ export const createSession = async (userId, refreshToken) => {
 export const refreshSession = async (token) => {
     const session = await sessionsRepository.findSessionByRefreshHash(sha256(token));
 
-    if (!session) {
-        return {
-            success: false,
-            message: 'Session not found. Refresh token is invalid',
-        }
-    }
+    if (!session) throw new Error('Session not found. Refresh token is invalid');
 
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
 
-    if (!decoded) {
-        return {
-            success: false,
-            message: 'Refresh token is invalid',
-        }
-    }
+    if (!decoded) throw new Error('Refresh token is invalid');
 
-    const { accessToken, refreshToken } = generateTokenPair(decoded.sub);
+    const accessToken = generateAccessToken(decoded.sub, session.id);
+    const refreshToken = generateRefreshToken(decoded.sub);
 
     const updateResult = await sessionsRepository.updateSession(
         session.id,
         sha256(refreshToken)
     );
 
-    if (!updateResult) {
-        return {
-            success: false,
-            message: 'Failed to update session',
-        }
-    }
+    if (!updateResult) throw new Error('Failed to update session');
 
     return {
-        success: true,
-        accessToken: accessToken,
-        refreshToken: refreshToken,
+        accessToken,
+        refreshToken,
+        session,
     }
 };
 
